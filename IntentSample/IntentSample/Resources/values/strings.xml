@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="explicit">Use OI File Manager</string>
+  <string name="implicit">Use Implicit Intent</string>
+  <string name="app_name">IntentSample</string>
+</resources>
