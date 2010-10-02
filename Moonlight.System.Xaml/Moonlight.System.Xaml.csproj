@@ -1,0 +1,193 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>8.0.50727</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{636FCCB4-F409-467D-A5E2-8310009BD8D4}</ProjectGuid>
+    <ProjectTypeGuids>{A1591282-1198-4647-A2B1-27E5FF5F6F3B};{fae04ec0-301f-11d3-bf4b-00c04f79efbc}</ProjectTypeGuids>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>Silverlight.System.Xaml</RootNamespace>
+    <AssemblyName>Silverlight.System.Xaml</AssemblyName>
+    <TargetFrameworkIdentifier>Silverlight</TargetFrameworkIdentifier>
+    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
+    <SilverlightVersion>$(TargetFrameworkVersion)</SilverlightVersion>
+    <SilverlightApplication>false</SilverlightApplication>
+    <ValidateXaml>true</ValidateXaml>
+    <ThrowErrorsInValidation>true</ThrowErrorsInValidation>
+  </PropertyGroup>
+  <!-- This property group is only here to support building this project using the 
+       MSBuild 3.5 toolset. In order to work correctly with this older toolset, it needs 
+       to set the TargetFrameworkVersion to v3.5 -->
+  <PropertyGroup Condition="'$(MSBuildToolsVersion)' == '3.5'">
+    <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>Bin\Debug</OutputPath>
+    <DefineConstants>TRACE;DEBUG;SILVERLIGHT;NET_2_1</DefineConstants>
+    <NoStdLib>true</NoStdLib>
+    <NoConfig>true</NoConfig>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>Bin\Release</OutputPath>
+    <DefineConstants>TRACE;SILVERLIGHT</DefineConstants>
+    <NoStdLib>true</NoStdLib>
+    <NoConfig>true</NoConfig>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="mscorlib" />
+    <Reference Include="System.Windows" />
+    <Reference Include="system" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Net" />
+    <Reference Include="System.Windows.Browser" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Consts.cs" />
+    <Compile Include="Locale.cs" />
+    <Compile Include="MonoTODOAttribute.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="System.Windows.Markup\AmbientAttribute.cs" />
+    <Compile Include="System.Windows.Markup\ArrayExtension.cs" />
+    <Compile Include="System.Windows.Markup\ConstructorArgumentAttribute.cs" />
+    <Compile Include="System.Windows.Markup\ContentPropertyAttribute.cs" />
+    <Compile Include="System.Windows.Markup\ContentWrapperAttribute.cs" />
+    <Compile Include="System.Windows.Markup\DateTimeValueSerializer.cs" />
+    <Compile Include="System.Windows.Markup\DependsOnAttribute.cs" />
+    <Compile Include="System.Windows.Markup\DictionaryKeyPropertyAttribute.cs" />
+    <Compile Include="System.Windows.Markup\IComponentConnector.cs" />
+    <Compile Include="System.Windows.Markup\INameScope.cs" />
+    <Compile Include="System.Windows.Markup\INameScopeDictionary.cs" />
+    <Compile Include="System.Windows.Markup\IProvideValueTarget.cs" />
+    <Compile Include="System.Windows.Markup\IQueryAmbient.cs" />
+    <Compile Include="System.Windows.Markup\IUriContext.cs" />
+    <Compile Include="System.Windows.Markup\IValueSerializerContext.cs" />
+    <Compile Include="System.Windows.Markup\IXamlTypeResolver.cs" />
+    <Compile Include="System.Windows.Markup\MarkupExtension.cs" />
+    <Compile Include="System.Windows.Markup\MarkupExtensionReturnTypeAttribute.cs" />
+    <Compile Include="System.Windows.Markup\MemberDefinition.cs" />
+    <Compile Include="System.Windows.Markup\NameReferenceConverter.cs" />
+    <Compile Include="System.Windows.Markup\NameScopePropertyAttribute.cs" />
+    <Compile Include="System.Windows.Markup\NullExtension.cs" />
+    <Compile Include="System.Windows.Markup\PropertyDefinition.cs" />
+    <Compile Include="System.Windows.Markup\Reference.cs" />
+    <Compile Include="System.Windows.Markup\RootNamespaceAttribute.cs" />
+    <Compile Include="System.Windows.Markup\RuntimeNamePropertyAttribute.cs" />
+    <Compile Include="System.Windows.Markup\StaticExtension.cs" />
+    <Compile Include="System.Windows.Markup\StaticExtensionConverter.cs" />
+    <Compile Include="System.Windows.Markup\TrimSurroundingWhitespaceAttribute.cs" />
+    <Compile Include="System.Windows.Markup\TypeExtension.cs" />
+    <Compile Include="System.Windows.Markup\TypeExtensionConverter.cs" />
+    <Compile Include="System.Windows.Markup\UidPropertyAttribute.cs" />
+    <Compile Include="System.Windows.Markup\UsableDuringInitializationAttribute.cs" />
+    <Compile Include="System.Windows.Markup\ValueSerializer.cs" />
+    <Compile Include="System.Windows.Markup\ValueSerializerAttribute.cs" />
+    <Compile Include="System.Windows.Markup\WhitespaceSignificantCollectionAttribute.cs" />
+    <Compile Include="System.Windows.Markup\XamlDeferLoadAttribute.cs" />
+    <Compile Include="System.Windows.Markup\XamlSetMarkupExtensionAttribute.cs" />
+    <Compile Include="System.Windows.Markup\XamlSetMarkupExtensionEventArgs.cs" />
+    <Compile Include="System.Windows.Markup\XamlSetTypeConverterAttribute.cs" />
+    <Compile Include="System.Windows.Markup\XamlSetTypeConverterEventArgs.cs" />
+    <Compile Include="System.Windows.Markup\XamlSetValueEventArgs.cs" />
+    <Compile Include="System.Windows.Markup\XData.cs" />
+    <Compile Include="System.Windows.Markup\XmlLangPropertyAttribute.cs" />
+    <Compile Include="System.Windows.Markup\XmlnsCompatibleWithAttribute.cs" />
+    <Compile Include="System.Windows.Markup\XmlnsDefinitionAttribute.cs" />
+    <Compile Include="System.Windows.Markup\XmlnsPrefixAttribute.cs" />
+    <Compile Include="System.Xaml.Permissions\XamlAccessLevel.cs" />
+    <Compile Include="System.Xaml.Permissions\XamlLoadPermission.cs" />
+    <Compile Include="System.Xaml.Schema\AllowedMemberLocations.cs" />
+    <Compile Include="System.Xaml.Schema\ShouldSerializeResult.cs" />
+    <Compile Include="System.Xaml.Schema\XamlCollectionKind.cs" />
+    <Compile Include="System.Xaml.Schema\XamlMemberInvoker.cs" />
+    <Compile Include="System.Xaml.Schema\XamlTypeInvoker.cs" />
+    <Compile Include="System.Xaml.Schema\XamlTypeName.cs" />
+    <Compile Include="System.Xaml.Schema\XamlTypeTypeConverter.cs" />
+    <Compile Include="System.Xaml.Schema\XamlValueConverter.cs" />
+    <Compile Include="System.Xaml\AmbientPropertyValue.cs" />
+    <Compile Include="System.Xaml\AttachableMemberIdentifier.cs" />
+    <Compile Include="System.Xaml\AttachablePropertyServices.cs" />
+    <Compile Include="System.Xaml\IAmbientProvider.cs" />
+    <Compile Include="System.Xaml\IAttachedPropertyStore.cs" />
+    <Compile Include="System.Xaml\IDestinationTypeProvider.cs" />
+    <Compile Include="System.Xaml\INamespacePrefixLookup.cs" />
+    <Compile Include="System.Xaml\IRootObjectProvider.cs" />
+    <Compile Include="System.Xaml\IXamlIndexingReader.cs" />
+    <Compile Include="System.Xaml\IXamlLineInfo.cs" />
+    <Compile Include="System.Xaml\IXamlLineInfoConsumer.cs" />
+    <Compile Include="System.Xaml\IXamlNameProvider.cs" />
+    <Compile Include="System.Xaml\IXamlNameResolver.cs" />
+    <Compile Include="System.Xaml\IXamlNamespaceResolver.cs" />
+    <Compile Include="System.Xaml\IXamlObjectWriterFactory.cs" />
+    <Compile Include="System.Xaml\IXamlSchemaContextProvider.cs" />
+    <Compile Include="System.Xaml\NamespaceDeclaration.cs" />
+    <Compile Include="System.Xaml\TypeExtensionMethods.cs" />
+    <Compile Include="System.Xaml\XamlBackgroundReader.cs" />
+    <Compile Include="System.Xaml\XamlDeferringLoader.cs" />
+    <Compile Include="System.Xaml\XamlDirective.cs" />
+    <Compile Include="System.Xaml\XamlDuplicateMemberException.cs" />
+    <Compile Include="System.Xaml\XamlException.cs" />
+    <Compile Include="System.Xaml\XamlInternalException.cs" />
+    <Compile Include="System.Xaml\XamlLanguage.cs" />
+    <Compile Include="System.Xaml\XamlMember.cs" />
+    <Compile Include="System.Xaml\XamlNodeList.cs" />
+    <Compile Include="System.Xaml\XamlNodeQueue.cs" />
+    <Compile Include="System.Xaml\XamlNodeType.cs" />
+    <Compile Include="System.Xaml\XamlObjectEventArgs.cs" />
+    <Compile Include="System.Xaml\XamlObjectReader.cs" />
+    <Compile Include="System.Xaml\XamlObjectReaderException.cs" />
+    <Compile Include="System.Xaml\XamlObjectReaderSettings.cs" />
+    <Compile Include="System.Xaml\XamlObjectWriter.cs" />
+    <Compile Include="System.Xaml\XamlObjectWriterException.cs" />
+    <Compile Include="System.Xaml\XamlObjectWriterSettings.cs" />
+    <Compile Include="System.Xaml\XamlParseException.cs" />
+    <Compile Include="System.Xaml\XamlReader.cs" />
+    <Compile Include="System.Xaml\XamlReaderSettings.cs" />
+    <Compile Include="System.Xaml\XamlSchemaContext.cs" />
+    <Compile Include="System.Xaml\XamlSchemaContextSettings.cs" />
+    <Compile Include="System.Xaml\XamlSchemaException.cs" />
+    <Compile Include="System.Xaml\XamlServices.cs" />
+    <Compile Include="System.Xaml\XamlType.cs" />
+    <Compile Include="System.Xaml\XamlWriter.cs" />
+    <Compile Include="System.Xaml\XamlWriterSettings.cs" />
+    <Compile Include="System.Xaml\XamlWriterStateManager.cs" />
+    <Compile Include="System.Xaml\XamlXmlReader.cs" />
+    <Compile Include="System.Xaml\XamlXmlReaderSettings.cs" />
+    <Compile Include="System.Xaml\XamlXmlWriter.cs" />
+    <Compile Include="System.Xaml\XamlXmlWriterException.cs" />
+    <Compile Include="System.Xaml\XamlXmlWriterSettings.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="System.Windows.Markup\ChangeLog" />
+    <None Include="System.Xaml.Permissions\ChangeLog" />
+    <None Include="System.Xaml.Schema\ChangeLog" />
+    <None Include="System.Xaml\ChangeLog" />
+  </ItemGroup>
+  <Import Project="$(MSBuildExtensionsPath32)\Microsoft\Silverlight\$(SilverlightVersion)\Microsoft.Silverlight.CSharp.targets" />
+  <ProjectExtensions>
+    <VisualStudio>
+      <FlavorProperties GUID="{A1591282-1198-4647-A2B1-27E5FF5F6F3B}">
+        <SilverlightProjectProperties />
+      </FlavorProperties>
+    </VisualStudio>
+  </ProjectExtensions>
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+</Project>
