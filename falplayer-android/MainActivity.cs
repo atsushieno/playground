@@ -61,13 +61,14 @@ namespace Falplayer
         PlayerAsyncTask player_task;
     }
 
-    class PlayerAsyncTask : AsyncTask
+    class PlayerAsyncTask : AsyncTask, SeekBar.IOnSeekBarChangeListener
     {
         Button button;
+        SeekBar seekbar;
         OggStreamBuffer vorbis_buffer;
         AudioTrack audio;
         Activity activity;
-        int loop_start, loop_length, loop_end;
+        long raw_start = 0, raw_end = int.MaxValue;
 
         static readonly int min_buf_size = AudioTrack.GetMinBufferSize(22050, (int)ChannelConfiguration.Stereo, Encoding.Pcm16bit);
         int buf_size = min_buf_size * 10;
@@ -75,9 +76,12 @@ namespace Falplayer
         public PlayerAsyncTask(Activity activity, Button button, OggStreamBuffer ovb)
         {
             this.activity = activity;
+            this.button = activity.FindViewById<Button>(Resource.Id.MyButton);
+            this.seekbar = activity.FindViewById<SeekBar>(Resource.Id.SongSeekbar);
             audio = new AudioTrack(Android.Media.Stream.Music, 22050, ChannelConfiguration.Stereo, Android.Media.Encoding.Pcm16bit, buf_size * 5, AudioTrackMode.Stream);
             this.button = button;
             vorbis_buffer = ovb;
+            long loop_start = 0, loop_length = 0;
             foreach (var cmt in ovb.GetComment (-1).Comments) {
                 var comment = cmt.Replace (" ", ""); // trim spaces
                 if (comment.StartsWith ("LOOPSTART="))
@@ -85,8 +89,17 @@ namespace Falplayer
                 if (comment.StartsWith ("LOOPLENGTH="))
                     loop_length = int.Parse(comment.Substring("LOOPLENGTH=".Length));
             }
-            loop_end = loop_start + loop_length;
-            button.Text = string.Format("loop: {0} - {1}", loop_start, loop_length);
+
+            // Since our AudioTrack bitrate is fake, those markers must be faked too.
+            vorbis_buffer.SeekPcm(loop_start);
+            raw_start = vorbis_buffer.TellRaw() * 2 * 2 * 2; // 2ch / 16bit / fake
+            vorbis_buffer.SeekPcm(loop_start + loop_length);
+            raw_end = vorbis_buffer.TellRaw() * 2 * 2 * 2; // 2ch / 16bit / fake
+            vorbis_buffer.SeekRaw(0);
+            button.Text = string.Format("loop: {0} - {1} | (raw) {2} - {3}", loop_start, loop_length, raw_start, raw_end);
+            seekbar.Max = (int) raw_end;
+            seekbar.SecondaryProgress = (int) raw_start;
+            seekbar.SetOnSeekBarChangeListener (this);
         }
 
         public bool IsPlaying
@@ -116,38 +129,66 @@ namespace Falplayer
             }
         }
 
-        Java.Lang.Object DoRun ()
+        long total = 0;
+
+        Java.Lang.Object DoRun()
         {
             var buffer = new byte[buf_size / 4];
-            long total = 0;
             audio.Play ();
-            do
+            while (!stop)
             {
                 long ret = 0;
                 ret = vorbis_buffer.Read(buffer, 0, buffer.Length);
-                if (ret <= 0)
+                if (ret <= 0) {
+                    stop = true;
+                    activity.RunOnUiThread(delegate { button.Enabled = false; });
                     break;
+                }
+                else if (ret > buffer.Length) {
+                    activity.RunOnUiThread (delegate { button.Text = "overflow!!!"; });
+                    stop = true;
+                    activity.RunOnUiThread(delegate { button.Enabled = false; });
+                    break;
+                }
 
-                if (ret + total >= loop_end)
-                    ret = loop_end - total; // cut down the buffer after loop
+                if (ret + total >= raw_end)
+                    ret = raw_end - total; // cut down the buffer after loop
+
+                if (++x % 50 == 0)
+                    activity.RunOnUiThread(delegate { seekbar.Progress = (int)total; });
 
                 // downgrade bitrate
                 for (int i = 1; i < ret / 2; i++)
                     buffer [i] = buffer [i * 2 + 1];
                 audio.Write(buffer, 0, (int) ret / 2);
                 total += ret;
-
                 // loop back to LOOPSTART
-                if (ret >= loop_end)
+                if (total >= raw_end)
                 {
-                    activity.RunOnUiThread(delegate { button.Text = String.Format ("looped: {0} {1} {2}", total, loop_end, vorbis_buffer.TellPcm ()); });
-                    break;
-                    vorbis_buffer.SeekPcm (loop_start);
-                    total = loop_start;
+                    activity.RunOnUiThread(delegate { button.Text = String.Format ("looped: {0} {1}", total, raw_end); });
+                    vorbis_buffer.SeekRaw (raw_start / 2 / 2 / 2); // also faked
+                    total = raw_start;
                 }
-            } while (!stop);
-            
+            }
+            activity.RunOnUiThread(delegate { button.Enabled = false; });
             return null;
+        }
+        int x;
+
+        public void OnProgressChanged(SeekBar seekBar, int progress, bool fromUser)
+        {
+            if (!fromUser)
+                return;
+            total = progress;
+            vorbis_buffer.SeekRaw (progress / 2 / 2 / 2);
+        }
+
+        public void OnStartTrackingTouch(SeekBar seekBar)
+        {
+        }
+
+        public void OnStopTrackingTouch(SeekBar seekBar)
+        {
         }
     }
 

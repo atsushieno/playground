@@ -40,6 +40,9 @@ namespace Falplayer
 			// aapt resource value: 0x7f050000
 			public const int MyButton = 2131034112;
 			
+			// aapt resource value: 0x7f050001
+			public const int SongSeekbar = 2131034113;
+			
 			private Id()
 			{
 			}
