@@ -23,7 +23,7 @@ namespace Falplayer
     {
         protected override void OnPause()
         {
-            player_task.Cancel(true);
+            player.Pause ();
             base.OnPause();
         }
         protected override void OnCreate(Bundle bundle)
@@ -34,30 +34,23 @@ namespace Falplayer
             SetContentView(Resource.Layout.Main);
 
             //Button load_button = FindViewById<Button> (Resource.Id.SelectButton);
-            Button play_button = FindViewById<Button> (Resource.Id.PlayButton);
+            //Button play_button = FindViewById<Button> (Resource.Id.PlayButton);
 
-            player_task = new PlayerAsyncTask (this);
-
-            //load_button.Click += delegate {
-                Stream input = File.OpenRead ("/sdcard/ED6437.ogg");
-                var vorbis_buffer = new UnmanagedOgg.OggStreamBuffer (input);
-                player_task.LoadVorbisBuffer (vorbis_buffer);
-            //};
+            player = new Player (this);
         }
-        PlayerAsyncTask player_task;
+        Player player;
     }
 
     class PlayerView : Java.Lang.Object, SeekBar.IOnSeekBarChangeListener
     {
-        PlayerAsyncTask player;
+        Player player;
         Activity activity;
         Button load_button, play_button;
         SeekBar seekbar;
         long loop_start, loop_length, loop_end;
         int loops;
-        bool is_playing;
 
-        public PlayerView (PlayerAsyncTask player, Activity activity)
+        public PlayerView (Player player, Activity activity)
         {
             this.player = player;
             this.activity = activity;
@@ -65,14 +58,17 @@ namespace Falplayer
             this.play_button = activity.FindViewById<Button>(Resource.Id.PlayButton);
             this.seekbar = activity.FindViewById<SeekBar> (Resource.Id.SongSeekbar);
 
+            //load_button.Click += delegate {
+            // player.SelectFile ();
+            //};
+
             play_button.Click += delegate {
                 try {
-                    if (is_playing) {
-                        player.Cancel (true);
+                    if (player.IsPlaying) {
+                        player.Stop ();
                     }
                     else
-                        player.Execute ();
-                    is_playing = !is_playing;
+                        player.Play ();
                 } catch (Exception ex) {
                     play_button.Text = ex.Message;
                 }
@@ -87,7 +83,7 @@ namespace Falplayer
             loop_end = loopEnd;
             PlayerEnabled = true;
 
-            play_button.Text = string.Format("loop: {0} - {1} - {2}", loopStart, loopLength, totalLength);
+            play_button.Text = string.Format ("loop: {0} - {1} - {2}", loopStart, loopLength, totalLength);
             // Since our AudioTrack bitrate is fake, those markers must be faked too.
             seekbar.Max = (int) totalLength;
             seekbar.SecondaryProgress = (int) loopEnd;
@@ -128,7 +124,6 @@ namespace Falplayer
 
         public void ProcessComplete ()
         {
-            is_playing = false;
         }
 
         public void OnProgressChanged (SeekBar seekBar, int progress, bool fromUser)
@@ -149,37 +144,35 @@ namespace Falplayer
         }
     }
 
-    class PlayerAsyncTask : AsyncTask
+    class Player
     {
         PlayerView view;
-        OggStreamBuffer vorbis_buffer;
         AudioTrack audio;
-        long loop_start = 0, loop_length = int.MaxValue, loop_end = int.MaxValue;
+        OggStreamBuffer vorbis_buffer;
+        PlayerAsyncTask task;
 
         static readonly int min_buf_size = AudioTrack.GetMinBufferSize(22050, (int)ChannelConfiguration.Stereo, Encoding.Pcm16bit);
         int buf_size = min_buf_size * 10;
 
-        public PlayerAsyncTask(Activity activity)
+        public Player (Activity activity)
         {
             view = new PlayerView (this, activity);
-            audio = new AudioTrack(Android.Media.Stream.Music, 22050, ChannelConfiguration.Stereo, Android.Media.Encoding.Pcm16bit, buf_size * 5, AudioTrackMode.Stream);
+            audio = new AudioTrack (Android.Media.Stream.Music, 22050, ChannelConfiguration.Stereo, Android.Media.Encoding.Pcm16bit, buf_size * 5, AudioTrackMode.Stream);
+            task = new PlayerAsyncTask (this);
+
+            SelectFile ();
+        }
+
+        public void SelectFile ()
+        {
+            Stream input = File.OpenRead("/sdcard/ED6437.ogg");
+            var vorbis_buffer = new UnmanagedOgg.OggStreamBuffer(input);
+            LoadVorbisBuffer(vorbis_buffer);
         }
 
         public void LoadVorbisBuffer (OggStreamBuffer ovb)
         {
-            vorbis_buffer = ovb;
-            foreach (var cmt in ovb.GetComment (-1).Comments) {
-                var comment = cmt.Replace (" ", ""); // trim spaces
-                if (comment.StartsWith ("LOOPSTART="))
-                    loop_start = int.Parse (comment.Substring ("LOOPSTART=".Length)) * 4;
-                if (comment.StartsWith ("LOOPLENGTH="))
-                    loop_length = int.Parse(comment.Substring("LOOPLENGTH=".Length)) * 4;
-            }
-
-            if (loop_start > 0 && loop_length > 0)
-                loop_end = (loop_start + loop_length);
-            int total = (int) vorbis_buffer.GetTotalPcm (-1);
-            view.Initialize (total * 4, loop_start, loop_length, loop_end);
+            task.LoadVorbisBuffer (ovb);
         }
 
         public bool IsPlaying
@@ -187,73 +180,146 @@ namespace Falplayer
             get { return audio.PlayState == PlayState.Playing; }
         }
 
+        public void Play ()
+        {
+            if (audio.PlayState == PlayState.Playing)
+                task.Resume ();
+            else {
+                task = new PlayerAsyncTask (this);
+                task.Execute ();
+            }
+        }
+
+        public void Pause ()
+        {
+            task.Pause ();
+        }
+
+        public void Stop ()
+        {
+            task.Cancel (true);
+        }
+
         public void Seek (long pos)
         {
-            total = pos;
-            vorbis_buffer.SeekPcm(pos / 4);
+            task.Seek (pos);
         }
 
-        protected override void OnCancelled()
+        class PlayerAsyncTask : AsyncTask
         {
-            if (IsPlaying)
+            Player player;
+            long loop_start = 0, loop_length = int.MaxValue, loop_end = int.MaxValue;
+            bool pause, stop;
+            ManualResetEvent pause_handle = new ManualResetEvent (false);
+            long total;
+            int x;
+            byte [] buffer;
+
+            public PlayerAsyncTask (Player player)
             {
-                stop = true;
-                audio.Release();
+                this.player = player;
+                buffer = new byte [player.buf_size / 4];
             }
-            base.OnCancelled();
-        }
 
-        bool stop;
-
-        protected override Java.Lang.Object DoInBackground (params Java.Lang.Object [] @params)
-        {
-            return DoRun ();
-        }
-
-        long total = 0;
-
-        Java.Lang.Object DoRun()
-        {
-            var buffer = new byte[buf_size / 4];
-            audio.Play ();
-            while (!stop)
+            public void LoadVorbisBuffer (OggStreamBuffer ovb)
             {
-                long ret = 0;
-                ret = vorbis_buffer.Read(buffer, 0, buffer.Length);
-                if (ret <= 0 || ret > buffer.Length) {
-                    stop = true;
-                    if (ret < 0)
-                        view.Error ("vorbis error : {0}", ret);
-                    else if (ret > buffer.Length)
-                        view.Error ("buffering overflow : {0}", ret);
-                    else
-                        view.ProcessComplete ();
-                    break;
-                }
-
-                if (ret + total >= loop_end)
-                    ret = loop_end - total; // cut down the buffer after loop
-
-                if (++x % 50 == 0)
-                    view.ReportProgress (total);
-
-                // downgrade bitrate
-                for (int i = 1; i < ret / 2; i++)
-                    buffer [i] = buffer [i * 2 + 1];
-                audio.Write(buffer, 0, (int) ret / 2);
-                total += ret;
-                // loop back to LOOPSTART
-                if (total >= loop_end)
+                player.vorbis_buffer = ovb;
+                foreach (var cmt in ovb.GetComment(-1).Comments)
                 {
-                    view.ProcessLoop (loop_start);
-                    vorbis_buffer.SeekPcm (loop_start / 4); // also faked
-                    total = loop_start;
+                    var comment = cmt.Replace(" ", ""); // trim spaces
+                    if (comment.StartsWith("LOOPSTART="))
+                        loop_start = int.Parse(comment.Substring("LOOPSTART=".Length)) * 4;
+                    if (comment.StartsWith("LOOPLENGTH="))
+                        loop_length = int.Parse(comment.Substring("LOOPLENGTH=".Length)) * 4;
                 }
+
+                if (loop_start > 0 && loop_length > 0)
+                    loop_end = (loop_start + loop_length);
+                int total = (int) player.vorbis_buffer.GetTotalPcm(-1);
+                player.view.Initialize(total * 4, loop_start, loop_length, loop_end);
             }
-            view.ProcessComplete ();
-            return null;
+
+            public void Pause ()
+            {
+                pause = true;
+            }
+
+            public void Resume()
+            {
+                pause_handle.Set ();
+            }
+
+            public void Seek(long pos)
+            {
+                total = pos;
+                player.vorbis_buffer.SeekPcm(pos / 4);
+            }
+
+            protected override void OnCancelled ()
+            {
+                pause_handle.Set ();
+                if (player.IsPlaying)
+                {
+                    stop = true;
+                    player.audio.Release();
+                }
+                base.OnCancelled();
+            }
+
+            protected override Java.Lang.Object DoInBackground(params Java.Lang.Object[] @params)
+            {
+                return DoRun();
+            }
+
+            Java.Lang.Object DoRun()
+            {
+                x = 0;
+                total = 0;
+                player.audio.Play ();
+                while (!stop)
+                {
+                    if (pause) {
+                        pause = false;
+                        pause_handle.WaitOne ();
+                    }
+                    long ret = 0;
+                    ret = player.vorbis_buffer.Read(buffer, 0, buffer.Length);
+                    if (ret <= 0 || ret > buffer.Length)
+                    {
+                        stop = true;
+                        if (ret < 0)
+                            player.view.Error ("vorbis error : {0}", ret);
+                        else if (ret > buffer.Length)
+                            player.view.Error ("buffering overflow : {0}", ret);
+                        else
+                            player.view.ProcessComplete ();
+                        break;
+                    }
+
+                    if (ret + total >= loop_end)
+                        ret = loop_end - total; // cut down the buffer after loop
+
+                    if (++x % 50 == 0)
+                        player.view.ReportProgress (total);
+
+                    // downgrade bitrate
+                    for (int i = 1; i < ret / 2; i++)
+                        buffer[i] = buffer[i * 2 + 1];
+                    player.audio.Write (buffer, 0, (int) ret / 2);
+                    total += ret;
+                    // loop back to LOOPSTART
+                    if (total >= loop_end)
+                    {
+                        player.view.ProcessLoop (loop_start);
+                        player.vorbis_buffer.SeekPcm (loop_start / 4); // also faked
+                        total = loop_start;
+                    }
+                }
+                player.audio.Stop ();
+                player.view.ProcessComplete ();
+                return null;
+            }
         }
-        int x;
     }
 
 }
