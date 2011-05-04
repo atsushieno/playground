@@ -33,53 +33,140 @@ namespace Falplayer
             // Set our view from the "main" layout resource
             SetContentView(Resource.Layout.Main);
 
-            // Get our button from the layout resource,
-            // and attach an event to it
-            Button button = FindViewById<Button>(Resource.Id.MyButton);
-            Stream input = File.OpenRead("/sdcard/ED6437.ogg");
-            var vorbis_buffer = new UnmanagedOgg.OggStreamBuffer(input);
+            //Button load_button = FindViewById<Button> (Resource.Id.SelectButton);
+            Button play_button = FindViewById<Button> (Resource.Id.PlayButton);
 
-            player_task = new PlayerAsyncTask(this, button, vorbis_buffer);
+            player_task = new PlayerAsyncTask (this);
 
-            button.Click += delegate {
-                try {
-                    if (player_task.IsPlaying)
-                    {
-                        player_task.Cancel(true);
-                        button.Enabled = false;
-                        return;
-                    }
-
-                    player_task.Execute();
-                }
-                catch (Exception ex)
-                {
-                    button.Text = ex.Message;
-                }
-            };
+            //load_button.Click += delegate {
+                Stream input = File.OpenRead ("/sdcard/ED6437.ogg");
+                var vorbis_buffer = new UnmanagedOgg.OggStreamBuffer (input);
+                player_task.LoadVorbisBuffer (vorbis_buffer);
+            //};
         }
         PlayerAsyncTask player_task;
     }
 
-    class PlayerAsyncTask : AsyncTask, SeekBar.IOnSeekBarChangeListener
+    class PlayerView : Java.Lang.Object, SeekBar.IOnSeekBarChangeListener
     {
-        Button button;
+        PlayerAsyncTask player;
+        Activity activity;
+        Button load_button, play_button;
         SeekBar seekbar;
+        long loop_start, loop_length, loop_end;
+        int loops;
+        bool is_playing;
+
+        public PlayerView (PlayerAsyncTask player, Activity activity)
+        {
+            this.player = player;
+            this.activity = activity;
+            //this.load_button = activity.FindViewById<Button>(Resource.Id.SelectButton);
+            this.play_button = activity.FindViewById<Button>(Resource.Id.PlayButton);
+            this.seekbar = activity.FindViewById<SeekBar> (Resource.Id.SongSeekbar);
+
+            play_button.Click += delegate {
+                try {
+                    if (is_playing) {
+                        player.Cancel (true);
+                    }
+                    else
+                        player.Execute ();
+                    is_playing = !is_playing;
+                } catch (Exception ex) {
+                    play_button.Text = ex.Message;
+                }
+            };
+        }
+
+        public void Initialize (long totalLength, long loopStart, long loopLength, long loopEnd)
+        {
+            loops = 0;
+            loop_start = loopStart;
+            loop_length = loopLength;
+            loop_end = loopEnd;
+            PlayerEnabled = true;
+
+            play_button.Text = string.Format("loop: {0} - {1} - {2}", loopStart, loopLength, totalLength);
+            // Since our AudioTrack bitrate is fake, those markers must be faked too.
+            seekbar.Max = (int) totalLength;
+            seekbar.SecondaryProgress = (int) loopEnd;
+            seekbar.SetOnSeekBarChangeListener (this);
+        }
+
+        public bool PlayerEnabled {
+            get { return play_button.Enabled; }
+            set {
+                activity.RunOnUiThread (delegate {
+                    play_button.Enabled = value;
+                    seekbar.Enabled = value;
+                    });
+            }
+        }
+
+        public void Error (string msgbase, params object[] args)
+        {
+            activity.RunOnUiThread (delegate {
+                PlayerEnabled = false;
+                play_button.Text = String.Format(msgbase, args);
+                });
+        }
+
+        public void ReportProgress (long pos)
+        {
+            activity.RunOnUiThread (delegate {
+                activity.RunOnUiThread(delegate { play_button.Text = String.Format("looped: {0} / cur {1} / end {2}", loops, pos, loop_end); });
+                seekbar.Progress = (int) pos;
+            });
+        }
+
+        public void ProcessLoop (long resetPosition)
+        {
+            loops++;
+            seekbar.Progress = (int)resetPosition;
+        }
+
+        public void ProcessComplete ()
+        {
+            is_playing = false;
+        }
+
+        public void OnProgressChanged (SeekBar seekBar, int progress, bool fromUser)
+        {
+            if (!fromUser)
+                return;
+            player.Seek (progress);
+        }
+
+        public void OnStartTrackingTouch (SeekBar seekBar)
+        {
+            // do nothing
+        }
+
+        public void OnStopTrackingTouch (SeekBar seekBar)
+        {
+            // do nothing
+        }
+    }
+
+    class PlayerAsyncTask : AsyncTask
+    {
+        PlayerView view;
         OggStreamBuffer vorbis_buffer;
         AudioTrack audio;
-        Activity activity;
         long loop_start = 0, loop_length = int.MaxValue, loop_end = int.MaxValue;
 
         static readonly int min_buf_size = AudioTrack.GetMinBufferSize(22050, (int)ChannelConfiguration.Stereo, Encoding.Pcm16bit);
         int buf_size = min_buf_size * 10;
 
-        public PlayerAsyncTask(Activity activity, Button button, OggStreamBuffer ovb)
+        public PlayerAsyncTask(Activity activity)
         {
-            this.activity = activity;
-            this.button = activity.FindViewById<Button>(Resource.Id.MyButton);
-            this.seekbar = activity.FindViewById<SeekBar>(Resource.Id.SongSeekbar);
+            view = new PlayerView (this, activity);
             audio = new AudioTrack(Android.Media.Stream.Music, 22050, ChannelConfiguration.Stereo, Android.Media.Encoding.Pcm16bit, buf_size * 5, AudioTrackMode.Stream);
-            this.button = button;
+        }
+
+        public void LoadVorbisBuffer (OggStreamBuffer ovb)
+        {
             vorbis_buffer = ovb;
             foreach (var cmt in ovb.GetComment (-1).Comments) {
                 var comment = cmt.Replace (" ", ""); // trim spaces
@@ -92,16 +179,18 @@ namespace Falplayer
             if (loop_start > 0 && loop_length > 0)
                 loop_end = (loop_start + loop_length);
             int total = (int) vorbis_buffer.GetTotalPcm (-1);
-            button.Text = string.Format("loop: {0} - {1} - {2}", loop_start, loop_length, total);
-            // Since our AudioTrack bitrate is fake, those markers must be faked too.
-            seekbar.Max = total * 4;
-            seekbar.SecondaryProgress = (int) loop_end;
-            seekbar.SetOnSeekBarChangeListener (this);
+            view.Initialize (total * 4, loop_start, loop_length, loop_end);
         }
 
         public bool IsPlaying
         {
             get { return audio.PlayState == PlayState.Playing; }
+        }
+
+        public void Seek (long pos)
+        {
+            total = pos;
+            vorbis_buffer.SeekPcm(pos / 4);
         }
 
         protected override void OnCancelled()
@@ -116,18 +205,12 @@ namespace Falplayer
 
         bool stop;
 
-        protected override Java.Lang.Object DoInBackground(params Java.Lang.Object[] @params)
+        protected override Java.Lang.Object DoInBackground (params Java.Lang.Object [] @params)
         {
-            try {
-                return DoRun ();
-            } catch (Exception ex) {
-                activity.RunOnUiThread (delegate { button.Text = ex.Message; });
-                throw;
-            }
+            return DoRun ();
         }
 
         long total = 0;
-        int loops = 0;
 
         Java.Lang.Object DoRun()
         {
@@ -137,15 +220,14 @@ namespace Falplayer
             {
                 long ret = 0;
                 ret = vorbis_buffer.Read(buffer, 0, buffer.Length);
-                if (ret <= 0) {
+                if (ret <= 0 || ret > buffer.Length) {
                     stop = true;
-                    activity.RunOnUiThread(delegate { button.Enabled = false; });
-                    break;
-                }
-                else if (ret > buffer.Length) {
-                    activity.RunOnUiThread (delegate { button.Text = String.Format ("overflow!!! : {0} {1}", ret, (int) (uint) ret); });
-                    stop = true;
-                    activity.RunOnUiThread(delegate { button.Enabled = false; });
+                    if (ret < 0)
+                        view.Error ("vorbis error : {0}", ret);
+                    else if (ret > buffer.Length)
+                        view.Error ("buffering overflow : {0}", ret);
+                    else
+                        view.ProcessComplete ();
                     break;
                 }
 
@@ -153,10 +235,7 @@ namespace Falplayer
                     ret = loop_end - total; // cut down the buffer after loop
 
                 if (++x % 50 == 0)
-                    activity.RunOnUiThread(delegate {
-                        activity.RunOnUiThread(delegate { button.Text = String.Format("looped: {0} / cur {1} / end {2}", loops, total, loop_end); });
-                        seekbar.Progress = (int)total; 
-                    });
+                    view.ReportProgress (total);
 
                 // downgrade bitrate
                 for (int i = 1; i < ret / 2; i++)
@@ -166,34 +245,15 @@ namespace Falplayer
                 // loop back to LOOPSTART
                 if (total >= loop_end)
                 {
-                    loops++;
-                    activity.RunOnUiThread(delegate { button.Text = String.Format ("looped: {0} {1}", total, loop_end); });
+                    view.ProcessLoop (loop_start);
                     vorbis_buffer.SeekPcm (loop_start / 4); // also faked
                     total = loop_start;
-                    seekbar.Progress = (int) total;
                 }
             }
-            activity.RunOnUiThread(delegate { button.Enabled = false; });
+            view.ProcessComplete ();
             return null;
         }
         int x;
-
-        public void OnProgressChanged(SeekBar seekBar, int progress, bool fromUser)
-        {
-            if (!fromUser)
-                return;
-            total = progress;
-            vorbis_buffer.SeekPcm (progress / 4);
-        }
-
-        public void OnStartTrackingTouch(SeekBar seekBar)
-        {
-        }
-
-        public void OnStopTrackingTouch(SeekBar seekBar)
-        {
-        }
     }
 
 }
-

@@ -4,13 +4,21 @@
     android:layout_width="fill_parent"
     android:layout_height="fill_parent"
     >
-<Button  
-    android:id="@+id/MyButton"
-    android:layout_width="fill_parent" 
-    android:layout_height="wrap_content" 
-    android:text="@string/Hello"
-    />
-<SeekBar
+  <LinearLayout
+    android:layout_width="fill_parent"
+    android:layout_height="wrap_content" >
+    <!-->Button
+      android:id="@+id/SelectButton" 
+      android:text="Select"
+      /-->
+    <Button
+      android:id="@+id/PlayButton" 
+      android:layout_width="fill_parent"
+      android:layout_height="wrap_content"
+      android:text="Play"
+      />
+  </LinearLayout>
+  <SeekBar
     android:id="@+id/SongSeekbar"
     android:layout_width="fill_parent"
     android:layout_height="wrap_content" 
