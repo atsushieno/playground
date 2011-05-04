@@ -68,7 +68,7 @@ namespace Falplayer
         OggStreamBuffer vorbis_buffer;
         AudioTrack audio;
         Activity activity;
-        long raw_start = 0, raw_end = int.MaxValue;
+        long loop_start = 0, loop_length = int.MaxValue, loop_end = int.MaxValue;
 
         static readonly int min_buf_size = AudioTrack.GetMinBufferSize(22050, (int)ChannelConfiguration.Stereo, Encoding.Pcm16bit);
         int buf_size = min_buf_size * 10;
@@ -81,24 +81,21 @@ namespace Falplayer
             audio = new AudioTrack(Android.Media.Stream.Music, 22050, ChannelConfiguration.Stereo, Android.Media.Encoding.Pcm16bit, buf_size * 5, AudioTrackMode.Stream);
             this.button = button;
             vorbis_buffer = ovb;
-            long loop_start = 0, loop_length = 0;
             foreach (var cmt in ovb.GetComment (-1).Comments) {
                 var comment = cmt.Replace (" ", ""); // trim spaces
                 if (comment.StartsWith ("LOOPSTART="))
-                    loop_start = int.Parse (comment.Substring ("LOOPSTART=".Length));
+                    loop_start = int.Parse (comment.Substring ("LOOPSTART=".Length)) * 4;
                 if (comment.StartsWith ("LOOPLENGTH="))
-                    loop_length = int.Parse(comment.Substring("LOOPLENGTH=".Length));
+                    loop_length = int.Parse(comment.Substring("LOOPLENGTH=".Length)) * 4;
             }
 
+            if (loop_start > 0 && loop_length > 0)
+                loop_end = (loop_start + loop_length);
+            int total = (int) vorbis_buffer.GetTotalPcm (-1);
+            button.Text = string.Format("loop: {0} - {1} - {2}", loop_start, loop_length, total);
             // Since our AudioTrack bitrate is fake, those markers must be faked too.
-            vorbis_buffer.SeekPcm(loop_start);
-            raw_start = vorbis_buffer.TellRaw() * 2 * 2 * 2; // 2ch / 16bit / fake
-            vorbis_buffer.SeekPcm(loop_start + loop_length);
-            raw_end = vorbis_buffer.TellRaw() * 2 * 2 * 2; // 2ch / 16bit / fake
-            vorbis_buffer.SeekRaw(0);
-            button.Text = string.Format("loop: {0} - {1} | (raw) {2} - {3}", loop_start, loop_length, raw_start, raw_end);
-            seekbar.Max = (int) raw_end;
-            seekbar.SecondaryProgress = (int) raw_start;
+            seekbar.Max = total * 4;
+            seekbar.SecondaryProgress = (int) loop_end;
             seekbar.SetOnSeekBarChangeListener (this);
         }
 
@@ -130,6 +127,7 @@ namespace Falplayer
         }
 
         long total = 0;
+        int loops = 0;
 
         Java.Lang.Object DoRun()
         {
@@ -151,11 +149,14 @@ namespace Falplayer
                     break;
                 }
 
-                if (ret + total >= raw_end)
-                    ret = raw_end - total; // cut down the buffer after loop
+                if (ret + total >= loop_end)
+                    ret = loop_end - total; // cut down the buffer after loop
 
                 if (++x % 50 == 0)
-                    activity.RunOnUiThread(delegate { seekbar.Progress = (int)total; });
+                    activity.RunOnUiThread(delegate {
+                        activity.RunOnUiThread(delegate { button.Text = String.Format("looped: {0} / cur {1} / end {2}", loops, total, loop_end); });
+                        seekbar.Progress = (int)total; 
+                    });
 
                 // downgrade bitrate
                 for (int i = 1; i < ret / 2; i++)
@@ -163,11 +164,13 @@ namespace Falplayer
                 audio.Write(buffer, 0, (int) ret / 2);
                 total += ret;
                 // loop back to LOOPSTART
-                if (total >= raw_end)
+                if (total >= loop_end)
                 {
-                    activity.RunOnUiThread(delegate { button.Text = String.Format ("looped: {0} {1}", total, raw_end); });
-                    vorbis_buffer.SeekRaw (raw_start / 2 / 2 / 2); // also faked
-                    total = raw_start;
+                    loops++;
+                    activity.RunOnUiThread(delegate { button.Text = String.Format ("looped: {0} {1}", total, loop_end); });
+                    vorbis_buffer.SeekPcm (loop_start / 4); // also faked
+                    total = loop_start;
+                    seekbar.Progress = (int) total;
                 }
             }
             activity.RunOnUiThread(delegate { button.Enabled = false; });
@@ -180,7 +183,7 @@ namespace Falplayer
             if (!fromUser)
                 return;
             total = progress;
-            vorbis_buffer.SeekRaw (progress / 2 / 2 / 2);
+            vorbis_buffer.SeekPcm (progress / 4);
         }
 
         public void OnStartTrackingTouch(SeekBar seekBar)
