@@ -36,10 +36,8 @@ namespace Falplayer
             // Get our button from the layout resource,
             // and attach an event to it
             Button button = FindViewById<Button>(Resource.Id.MyButton);
-            Stream input = File.OpenRead("/sdcard/ED6437.ogg");// Assets.Open("ED6421.ogg");
-            //button.Text = string.Format("file size: " + Assets.OpenFd ("invincible.ogg").Length);
+            Stream input = File.OpenRead("/sdcard/ED6437.ogg");
             var vorbis_buffer = new UnmanagedOgg.OggStreamBuffer(input);
-            button.Text = string.Format("bitrate: " + vorbis_buffer.GetBitrate(-1));
 
             player_task = new PlayerAsyncTask(this, button, vorbis_buffer);
 
@@ -69,16 +67,26 @@ namespace Falplayer
         OggStreamBuffer vorbis_buffer;
         AudioTrack audio;
         Activity activity;
+        int loop_start, loop_length, loop_end;
 
-        static readonly int min_buf_size = AudioTrack.GetMinBufferSize(44100, (int)ChannelConfiguration.Stereo, Encoding.Pcm16bit);
+        static readonly int min_buf_size = AudioTrack.GetMinBufferSize(22050, (int)ChannelConfiguration.Stereo, Encoding.Pcm16bit);
         int buf_size = min_buf_size * 10;
 
         public PlayerAsyncTask(Activity activity, Button button, OggStreamBuffer ovb)
         {
             this.activity = activity;
-            audio = new AudioTrack(Android.Media.Stream.Music, 44100, ChannelConfiguration.Stereo, Android.Media.Encoding.Pcm16bit, buf_size * 5, AudioTrackMode.Stream);
+            audio = new AudioTrack(Android.Media.Stream.Music, 22050, ChannelConfiguration.Stereo, Android.Media.Encoding.Pcm16bit, buf_size * 5, AudioTrackMode.Stream);
             this.button = button;
             vorbis_buffer = ovb;
+            foreach (var cmt in ovb.GetComment (-1).Comments) {
+                var comment = cmt.Replace (" ", ""); // trim spaces
+                if (comment.StartsWith ("LOOPSTART="))
+                    loop_start = int.Parse (comment.Substring ("LOOPSTART=".Length));
+                if (comment.StartsWith ("LOOPLENGTH="))
+                    loop_length = int.Parse(comment.Substring("LOOPLENGTH=".Length));
+            }
+            loop_end = loop_start + loop_length;
+            button.Text = string.Format("loop: {0} - {1}", loop_start, loop_length);
         }
 
         public bool IsPlaying
@@ -100,26 +108,45 @@ namespace Falplayer
 
         protected override Java.Lang.Object DoInBackground(params Java.Lang.Object[] @params)
         {
-            var buffer = new byte[buf_size];
+            try {
+                return DoRun ();
+            } catch (Exception ex) {
+                activity.RunOnUiThread (delegate { button.Text = ex.Message; });
+                throw;
+            }
+        }
+
+        Java.Lang.Object DoRun ()
+        {
+            var buffer = new byte[buf_size / 4];
             long total = 0;
-            long buffered = 0;
+            audio.Play ();
             do
             {
                 long ret = 0;
                 ret = vorbis_buffer.Read(buffer, 0, buffer.Length);
                 if (ret <= 0)
                     break;
-                audio.Write(buffer, 0, (int)ret);
-                if (buffered < 0x10000)
-                {
-                    buffered += ret;
-                    if (buffered >= 0x10000)
-                        activity.RunOnUiThread(delegate { audio.Play(); button.Text = "play started"; });
-                }
+
+                if (ret + total >= loop_end)
+                    ret = loop_end - total; // cut down the buffer after loop
+
+                // downgrade bitrate
+                for (int i = 1; i < ret / 2; i++)
+                    buffer [i] = buffer [i * 2 + 1];
+                audio.Write(buffer, 0, (int) ret / 2);
                 total += ret;
-                //activity.RunOnUiThread(delegate { button.Text = total.ToString(); });
+
+                // loop back to LOOPSTART
+                if (ret >= loop_end)
+                {
+                    activity.RunOnUiThread(delegate { button.Text = String.Format ("looped: {0} {1} {2}", total, loop_end, vorbis_buffer.TellPcm ()); });
+                    break;
+                    vorbis_buffer.SeekPcm (loop_start);
+                    total = loop_start;
+                }
             } while (!stop);
-            activity.RunOnUiThread(delegate { button.Text = string.Format("total: {0} bytes", total); });
+            
             return null;
         }
     }
