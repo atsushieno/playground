@@ -143,7 +143,7 @@ namespace Falplayer
                     break;
                 }
                 else if (ret > buffer.Length) {
-                    activity.RunOnUiThread (delegate { button.Text = "overflow!!!"; });
+                    activity.RunOnUiThread (delegate { button.Text = String.Format ("overflow!!! : {0} {1}", ret, (int) (uint) ret); });
                     stop = true;
                     activity.RunOnUiThread(delegate { button.Enabled = false; });
                     break;

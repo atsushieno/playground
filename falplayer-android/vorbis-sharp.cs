@@ -46,6 +46,9 @@ using VorbisDspStatePtr = System.IntPtr;
 using VorbisBlockPtr = System.IntPtr;
 using OggPacketPtr = System.IntPtr;
 using OggVorbisFilePtr = System.IntPtr;
+// LAMESPEC: this definition is wrong, but it seems some devices (such as HTC Desire) doesn't
+// work fine if I correctly define this.
+using OV_LONG = System.Int32;
 
 namespace UnmanagedOgg
 {
@@ -700,8 +703,8 @@ namespace UnmanagedOgg
 		[DllImport (FileLibrary)]
 		static internal extern VorbisCommentPtr ov_comment (OggVorbisFilePtr vf, C_INT link);
 
-		[DllImport (FileLibrary)]
-		static internal extern long ov_read (OggVorbisFilePtr vf, IntPtr buffer, C_INT length, ref int bitstream);
+		[DllImport (FileLibrary)] // FIXME: this mismatch occurs on Desire.
+		static internal extern OV_LONG ov_read (OggVorbisFilePtr vf, IntPtr buffer, C_INT length, ref int bitstream);
 
 		[DllImport ("libc")]
 		static internal extern C_FILEPTR fopen (string path, string mode);
