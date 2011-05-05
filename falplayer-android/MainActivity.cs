@@ -65,7 +65,7 @@ namespace Falplayer
             play_button.Click += delegate {
                 try {
                     if (player.IsPlaying)
-                        player.Stop ();
+                        player.Pause ();
                     else
                         player.Play ();
                 } catch (Exception ex) {
@@ -152,7 +152,7 @@ namespace Falplayer
         PlayerAsyncTask task;
 
         static readonly int min_buf_size = AudioTrack.GetMinBufferSize(22050, (int)ChannelConfiguration.Stereo, Encoding.Pcm16bit);
-        int buf_size = min_buf_size * 10;
+        int buf_size = min_buf_size * 8;
 
         public Player (Activity activity)
         {
@@ -188,7 +188,7 @@ namespace Falplayer
 
         public void Play ()
         {
-            if (audio.PlayState == PlayState.Playing)
+            if (audio.PlayState == PlayState.Paused)
                 task.Resume ();
             else {
                 task = new PlayerAsyncTask (this);
@@ -236,12 +236,13 @@ namespace Falplayer
                 pause = true;
             }
 
-            public void Resume()
+            public void Resume ()
             {
+                pause = false; // make sure to not get overwritten
                 pause_handle.Set ();
             }
 
-            public void Seek(long pos)
+            public void Seek (long pos)
             {
                 total = pos;
                 player.vorbis_buffer.SeekPcm (pos / 4);
@@ -251,12 +252,8 @@ namespace Falplayer
             {
                 pause_handle.Set ();
                 if (player.IsPlaying)
-                {
-                    stop = true;
-                    player.audio.Stop ();
-                    player.audio.Release ();
-                }
-                base.OnCancelled();
+                    stop = true; // and let player loop finish.
+                base.OnCancelled ();
             }
 
             protected override Java.Lang.Object DoInBackground(params Java.Lang.Object[] @params)
