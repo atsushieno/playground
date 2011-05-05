@@ -74,6 +74,7 @@ namespace UnmanagedOgg
 		{
 		}
 	}
+
 	public struct OggVorbisInfo
 	{
 		readonly VorbisInfo info;
@@ -139,7 +140,7 @@ namespace UnmanagedOgg
 		}
 	}
 
-	class OggStreamBuffer : IDisposable
+	public class OggStreamBuffer : IDisposable
 	{
 		public OggStreamBuffer (string path)
 			: this (path, Encoding.Default)
