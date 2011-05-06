@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using Android.App;
 using Android.Content;
 using Android.Media;
+using Android.Preferences;
 using Android.Runtime;
 using Android.Views;
 using Android.Widget;
@@ -59,7 +60,23 @@ namespace Falplayer
             this.title_text_view = activity.FindViewById<TextView>(Resource.Id.SongTitleTextView);
 
             load_button.Click += delegate {
-                player.SelectFile ();
+                var db = new AlertDialog.Builder (activity);
+                db.SetTitle ("Select Music Folder");
+                var pref = PreferenceManager.GetDefaultSharedPreferences (activity);
+#if false
+                var dirs = pref.GetString ("file_group", "ZAPZAPZAP!!!").Split('\\');
+#else
+                var dirs = new string[] { "/sdcard/falcom/ED_SORA3", "/sdcard/falcom/YSO" };
+                var edit = pref.Edit();
+                edit.PutString ("file_group", String.Join("\\", dirs));
+                edit.Commit ();
+#endif
+                db.SetItems (dirs, delegate (object o, DialogClickEventArgs e) {
+                    // FIXME: MfA issue; e.Which or something equivalent should be int, not limited enum.
+                    Android.Util.Log.Debug ("FALPLAYER", "selected item: " + (int) e.Which);
+                });
+                var dlg = db.Show ();
+                player.SelectFile();
             };
 
             play_button.Click += delegate {
