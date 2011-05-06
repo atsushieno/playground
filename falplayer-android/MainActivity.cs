@@ -1,4 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.IO.IsolatedStorage;
+using System.Linq;
 using System.Runtime.InteropServices;
 
 using Android.App;
@@ -41,12 +45,13 @@ namespace Falplayer
 
     class PlayerView : Java.Lang.Object, SeekBar.IOnSeekBarChangeListener
     {
+        const string from_history_tag = "<from history>";
         Player player;
         Activity activity;
         Button load_button, play_button, stop_button;
         TextView title_text_view;
         SeekBar seekbar;
-        long loop_start, loop_length, loop_end;
+        long loop_start, loop_length, loop_end, total_length;
         int loops;
 
         public PlayerView (Player player, Activity activity)
@@ -58,10 +63,12 @@ namespace Falplayer
             this.stop_button = activity.FindViewById<Button>(Resource.Id.StopButton);
             this.seekbar = activity.FindViewById<SeekBar>(Resource.Id.SongSeekbar);
             this.title_text_view = activity.FindViewById<TextView>(Resource.Id.SongTitleTextView);
+            PlayerEnabled = false;
 
             load_button.Click += delegate {
                 var db = new AlertDialog.Builder (activity);
                 db.SetTitle ("Select Music Folder");
+#if PREFERENCE_USABLE
                 var pref = PreferenceManager.GetDefaultSharedPreferences (activity);
 #if false
                 var dirs = pref.GetString ("file_group", "ZAPZAPZAP!!!").Split('\\');
@@ -71,12 +78,29 @@ namespace Falplayer
                 edit.PutString ("file_group", String.Join("\\", dirs));
                 edit.Commit ();
 #endif
+#else
+                var ifs = IsolatedStorageFile.GetUserStoreForApplication ();
+                if (!ifs.FileExists ("songdirs.txt")) {
+                    // FIXME: show directory-tree selector dialog and let user pick out dirs.
+                    using (var sw = new StreamWriter (ifs.CreateFile ("songdirs.txt"))) {
+                        sw.WriteLine ("/sdcard");
+                        sw.WriteLine("/sdcard/falcom");
+                    }
+                }
+                List<string> dirlist = new List<string> ();
+                if (ifs.FileExists ("history.txt"))
+                    dirlist.Add (from_history_tag);
+                using (var sr = new StreamReader (ifs.OpenFile ("songdirs.txt", FileMode.Open)))
+                    foreach (var s in sr.ReadToEnd ().Split ('\n'))
+                        if (!String.IsNullOrEmpty (s))
+                            dirlist.Add (s);
+                var dirs = dirlist.ToArray ();
+#endif
                 db.SetItems (dirs, delegate (object o, DialogClickEventArgs e) {
-                    // FIXME: MfA issue; e.Which or something equivalent should be int, not limited enum.
-                    Android.Util.Log.Debug ("FALPLAYER", "selected item: " + (int) e.Which);
+                    string dir = dirs [(int) e.Which];
+                    ProcessFileSelectionDialog (dir, mus => player.SelectFile (mus));
                 });
                 var dlg = db.Show ();
-                player.SelectFile();
             };
 
             play_button.Click += delegate {
@@ -92,6 +116,36 @@ namespace Falplayer
                     play_button.Text = ex.Message;
                 }
             };
+
+            stop_button.Click += delegate {
+                player.Stop ();
+                play_button.Text = "Play";
+            };
+        }
+
+        void ProcessFileSelectionDialog (string dir, Action<string> action)
+        {
+            var l = new List<string> ();
+            if (dir == from_history_tag) {
+                l.AddRange (player.GetPlayHistory ());
+            } else {
+                if (Directory.Exists (dir))
+                    foreach (var file in Directory.GetFiles (dir, "*.ogg"))
+                        l.Add (file);
+            }
+            var db = new AlertDialog.Builder(activity);
+            if (l.Count == 0)
+                db.SetMessage ("No music files there");
+            else {
+                db.SetTitle ("Select Music File");
+                var files = (from f in l select Path.GetFileName (f)).ToArray ();
+                db.SetItems (files, delegate (object o, DialogClickEventArgs e) {
+                    int idx = (int) e.Which;
+                    Android.Util.Log.Debug ("FALPLAYER", "selected song index: " + idx);
+                    action (l [idx]);
+                });
+            }
+            db.Show().Show();
         }
 
         public void Initialize (long totalLength, long loopStart, long loopLength, long loopEnd)
@@ -100,13 +154,19 @@ namespace Falplayer
             loop_start = loopStart;
             loop_length = loopLength;
             loop_end = loopEnd;
+            total_length = totalLength;
             PlayerEnabled = true;
+            Reset ();
+        }
 
+        public void Reset ()
+        {
             play_button.Text = "Play";
-            title_text_view.Text = string.Format ("loop: {0} - {1} - {2}", loopStart, loopLength, totalLength);
+            title_text_view.Text = string.Format ("loop: {0} - {1} - {2}", loop_start, loop_length, total_length);
             // Since our AudioTrack bitrate is fake, those markers must be faked too.
-            seekbar.Max = (int) totalLength;
-            seekbar.SecondaryProgress = (int) loopEnd;
+            seekbar.Max = (int) total_length;
+            seekbar.Progress = 0;
+            seekbar.SecondaryProgress = (int) loop_end;
             seekbar.SetOnSeekBarChangeListener (this);
         }
 
@@ -115,6 +175,7 @@ namespace Falplayer
             set {
                 activity.RunOnUiThread (delegate {
                     play_button.Enabled = value;
+                    stop_button.Enabled = value;
                     seekbar.Enabled = value;
                     });
             }
@@ -180,14 +241,31 @@ namespace Falplayer
             view = new PlayerView (this, activity);
             audio = new AudioTrack (Android.Media.Stream.Music, 22050, ChannelConfiguration.Stereo, Android.Media.Encoding.Pcm16bit, buf_size * 5, AudioTrackMode.Stream);
             task = new PlayerAsyncTask (this);
-
-            SelectFile ();
         }
 
-        public void SelectFile ()
+        internal string[] GetPlayHistory()
         {
-            Stream input = File.OpenRead ("/sdcard/ED6437.ogg");
-            vorbis_buffer = new UnmanagedOgg.OggStreamBuffer(input);
+            var l = new List<string>();
+            var ifs = IsolatedStorageFile.GetUserStoreForApplication ();
+            if (ifs.FileExists ("history.txt"))
+                using (var sr = new StreamReader(ifs.OpenFile ("history.txt", FileMode.Open)))
+                    foreach (var file in sr.ReadToEnd().Split ('\n'))
+                        if (!String.IsNullOrEmpty(file))
+                            l.Add(file);
+            return l.ToArray();
+        }
+
+        public void SelectFile (string file)
+        {
+            Android.Util.Log.Debug ("FALPLAYER", "file to play: " + file);
+            if (!GetPlayHistory ().Contains (file)) {
+                var ifs = IsolatedStorageFile.GetUserStoreForApplication ();
+                using (var sw = new StreamWriter (ifs.OpenFile ("history.txt", FileMode.OpenOrCreate)))
+                    sw.WriteLine (file);
+            }
+
+            Stream input = File.OpenRead (file);
+            vorbis_buffer = new OggStreamBuffer (input);
             loop = new LoopCommentExtension (vorbis_buffer);
             InitializeVorbisBuffer ();
         }
@@ -195,7 +273,7 @@ namespace Falplayer
         public void InitializeVorbisBuffer ()
         {
             view.Initialize (loop.Total * 4, loop.Start * 4, loop.Length * 4, loop.End * 4);
-            task.LoadVorbisBuffer(vorbis_buffer, loop);
+            task.LoadVorbisBuffer (vorbis_buffer, loop);
         }
 
         public LoopCommentExtension Loop {
@@ -225,7 +303,8 @@ namespace Falplayer
 
         public void Stop ()
         {
-            task.Cancel (true);
+            view.Reset ();
+            task.Stop ();
         }
 
         public void Seek (long pos)
@@ -269,11 +348,16 @@ namespace Falplayer
                 player.vorbis_buffer.SeekPcm (pos / 4);
             }
 
-            protected override void OnCancelled ()
+            public void Stop ()
             {
                 pause_handle.Set ();
                 if (player.IsPlaying)
                     stop = true; // and let player loop finish.
+            }
+
+            protected override void OnCancelled ()
+            {
+                Stop ();
                 base.OnCancelled ();
             }
 
@@ -330,6 +414,7 @@ namespace Falplayer
                     }
                 }
                 player.audio.Stop ();
+                player.audio.Release (); // FIXME: this needs to be reconsidered. Re-playing causes error.
                 player.view.ProcessComplete ();
                 return null;
             }
