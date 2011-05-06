@@ -37,11 +37,20 @@ namespace Falplayer
 		public partial class Id
 		{
 			
-			// aapt resource value: 0x7f050000
-			public const int PlayButton = 2131034112;
-			
 			// aapt resource value: 0x7f050001
-			public const int SongSeekbar = 2131034113;
+			public const int PlayButton = 2131034113;
+			
+			// aapt resource value: 0x7f050000
+			public const int SelectButton = 2131034112;
+			
+			// aapt resource value: 0x7f050004
+			public const int SongSeekbar = 2131034116;
+			
+			// aapt resource value: 0x7f050003
+			public const int SongTitleTextView = 2131034115;
+			
+			// aapt resource value: 0x7f050002
+			public const int StopButton = 2131034114;
 			
 			private Id()
 			{

@@ -33,9 +33,6 @@ namespace Falplayer
             // Set our view from the "main" layout resource
             SetContentView(Resource.Layout.Main);
 
-            //Button load_button = FindViewById<Button> (Resource.Id.SelectButton);
-            //Button play_button = FindViewById<Button> (Resource.Id.PlayButton);
-
             player = new Player (this);
         }
         Player player;
@@ -45,7 +42,8 @@ namespace Falplayer
     {
         Player player;
         Activity activity;
-        Button load_button, play_button;
+        Button load_button, play_button, stop_button;
+        TextView title_text_view;
         SeekBar seekbar;
         long loop_start, loop_length, loop_end;
         int loops;
@@ -54,20 +52,25 @@ namespace Falplayer
         {
             this.player = player;
             this.activity = activity;
-            //this.load_button = activity.FindViewById<Button>(Resource.Id.SelectButton);
+            this.load_button = activity.FindViewById<Button>(Resource.Id.SelectButton);
             this.play_button = activity.FindViewById<Button>(Resource.Id.PlayButton);
-            this.seekbar = activity.FindViewById<SeekBar> (Resource.Id.SongSeekbar);
+            this.stop_button = activity.FindViewById<Button>(Resource.Id.StopButton);
+            this.seekbar = activity.FindViewById<SeekBar>(Resource.Id.SongSeekbar);
+            this.title_text_view = activity.FindViewById<TextView>(Resource.Id.SongTitleTextView);
 
-            //load_button.Click += delegate {
-            // player.SelectFile ();
-            //};
+            load_button.Click += delegate {
+                player.SelectFile ();
+            };
 
             play_button.Click += delegate {
                 try {
-                    if (player.IsPlaying)
+                    if (player.IsPlaying) {
                         player.Pause ();
-                    else
+                        play_button.Text = "Play";
+                    } else {
                         player.Play ();
+                        play_button.Text = "Pause";
+                    }
                 } catch (Exception ex) {
                     play_button.Text = ex.Message;
                 }
@@ -82,7 +85,8 @@ namespace Falplayer
             loop_end = loopEnd;
             PlayerEnabled = true;
 
-            play_button.Text = string.Format ("loop: {0} - {1} - {2}", loopStart, loopLength, totalLength);
+            play_button.Text = "Play";
+            title_text_view.Text = string.Format ("loop: {0} - {1} - {2}", loopStart, loopLength, totalLength);
             // Since our AudioTrack bitrate is fake, those markers must be faked too.
             seekbar.Max = (int) totalLength;
             seekbar.SecondaryProgress = (int) loopEnd;
@@ -110,7 +114,7 @@ namespace Falplayer
         public void ReportProgress (long pos)
         {
             activity.RunOnUiThread (delegate {
-                play_button.Text = String.Format("looped: {0} / cur {1} / end {2}", loops, pos, loop_end);
+                title_text_view.Text = String.Format("loop: {0} / cur {1} / end {2}", loops, pos, loop_end);
                 seekbar.Progress = (int) pos;
             });
         }
@@ -165,7 +169,7 @@ namespace Falplayer
 
         public void SelectFile ()
         {
-            Stream input = File.OpenRead("/sdcard/ED6437.ogg");
+            Stream input = File.OpenRead ("/sdcard/ED6437.ogg");
             vorbis_buffer = new UnmanagedOgg.OggStreamBuffer(input);
             loop = new LoopCommentExtension (vorbis_buffer);
             InitializeVorbisBuffer ();
